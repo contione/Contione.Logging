@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PackageId>Contione.Logging</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>contione</Authors>
+    <Description>Structured ASP.NET Core HTTP logging with live-configured sensitive field masking.</Description>
+    <PackageTags>logging;serilog;aspnetcore;masking</PackageTags>
+    <RepositoryUrl>https://github.com/contione/Contione.Logging</RepositoryUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+</Project>
