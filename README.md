@@ -20,23 +20,43 @@ record Contact(string Email, string Name);
 
 Configure a Serilog sink and mask rules in `appsettings.json`:
 
-Install the sink package you choose (for the example below, `Serilog.Sinks.Console`) in the host application.
+Install the sink and formatter packages you choose. The sample uses `Serilog.Sinks.Console` with `Serilog.Formatting.Compact` to emit one structured JSON object per line.
 
 ```json
 {
   "ContioneLogging": {
     "MaskFields": {
       "email": "Email",
-      "password": "[REDACTED]"
+      "password": "Full",
+      "phone": "Phone"
     }
   },
   "Serilog": {
-    "WriteTo": [ { "Name": "Console" } ]
+    "WriteTo": [
+      {
+        "Name": "Console",
+        "Args": {
+          "formatter": "Serilog.Formatting.Compact.CompactJsonFormatter, Serilog.Formatting.Compact"
+        }
+      }
+    ]
   }
 }
 ```
 
-`Email` keeps the first character of the local part and the domain, for example `alice@example.com` becomes `a***@example.com`. Any other value is used as the literal replacement. Changes to the configuration file take effect through `IOptionsMonitor` without restarting the app, provided the host loads it with `reloadOnChange` (the default for `WebApplication.CreateBuilder`).
+Available formats:
+
+| Format | Example |
+| --- | --- |
+| `Email` | `alice@example.com` -> `a***@example.com` |
+| `Phone` | `13812345678` -> `138****5678` |
+| `IdCard` | Keeps the first 6 and last 4 characters |
+| `BankCard` | Keeps the last 4 characters |
+| `Name` | `Alice` -> `A****` |
+| `KeepLast4` | Keeps the last 4 characters |
+| `Full` | Replaces the value with `[REDACTED]` |
+
+An unrecognized format is used as a literal replacement, so values such as `[PRIVATE]` remain supported. Invalid or too-short values use `[REDACTED]`. Changes to the configuration file take effect through `IOptionsMonitor` without restarting the app, provided the host loads it with `reloadOnChange` (the default for `WebApplication.CreateBuilder`).
 
 HTTP JSON bodies become nested Serilog objects, including arrays. Invalid or truncated JSON bodies are logged as `[REDACTED]`. Non-JSON bodies are not logged. `BodyLogLimit` defaults to 32768 bytes and can be configured under `ContioneLogging` (clamped to 1 MiB). Masking works on named structured properties; it cannot identify personal data embedded in arbitrary message text. Configure sinks and retention through Serilog as usual. You can adjust other `HttpLoggingOptions`, but the package always disables its raw body fields and combined logs to prevent an unmasked copy.
 

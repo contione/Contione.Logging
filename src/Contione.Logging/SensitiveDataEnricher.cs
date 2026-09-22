@@ -7,8 +7,6 @@ namespace Contione.Logging;
 
 public sealed class SensitiveDataEnricher(IOptionsMonitor<ContioneLoggingOptions> options) : ILogEventEnricher
 {
-    private const string Redacted = "[REDACTED]";
-
     public void Enrich(LogEvent logEvent, ILogEventPropertyFactory propertyFactory)
     {
         var fields = options.CurrentValue.MaskFields;
@@ -26,7 +24,7 @@ public sealed class SensitiveDataEnricher(IOptionsMonitor<ContioneLoggingOptions
         IReadOnlyDictionary<string, string> fields)
     {
         if (name is not null && TryGetFormat(fields, name, out var format))
-            return new ScalarValue(Mask(value, format));
+            return new ScalarValue(SensitiveValueMasker.Mask((value as ScalarValue)?.Value?.ToString(), format));
 
         if (name is "RequestBody" or "ResponseBody" && value is ScalarValue { Value: string body })
         {
@@ -37,7 +35,7 @@ public sealed class SensitiveDataEnricher(IOptionsMonitor<ContioneLoggingOptions
             }
             catch (JsonException)
             {
-                return new ScalarValue(Redacted);
+                return new ScalarValue(SensitiveValueMasker.Redacted);
             }
         }
 
@@ -69,18 +67,6 @@ public sealed class SensitiveDataEnricher(IOptionsMonitor<ContioneLoggingOptions
 
         format = string.Empty;
         return false;
-    }
-
-    private static string Mask(LogEventPropertyValue value, string format)
-    {
-        if (!string.Equals(format, "Email", StringComparison.OrdinalIgnoreCase))
-            return format;
-
-        var email = (value as ScalarValue)?.Value as string;
-        var at = email?.IndexOf('@') ?? -1;
-        return at > 0 && at < email!.Length - 1
-            ? $"{email[0]}***{email[at..]}"
-            : Redacted;
     }
 
     private static LogEventPropertyValue FromJson(JsonElement element) => element.ValueKind switch

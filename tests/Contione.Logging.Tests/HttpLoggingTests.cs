@@ -10,6 +10,8 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Serilog;
 using Serilog.Core;
 using Serilog.Events;
 
@@ -103,6 +105,47 @@ public class HttpLoggingTests
         Assert.DoesNotContain("secret@example.com", string.Join('\n', sink.Events.Select(e => e.RenderMessage())));
     }
 
+    [Fact]
+    public void Common_mask_formats_apply_to_structured_properties()
+    {
+        var options = new ContioneLoggingOptions
+        {
+            MaskFields = new Dictionary<string, string>
+            {
+                ["Email"] = "Email",
+                ["Phone"] = "Phone",
+                ["IdCard"] = "IdCard",
+                ["BankCard"] = "BankCard",
+                ["Name"] = "Name",
+                ["Token"] = "KeepLast4",
+                ["Password"] = "Full",
+                ["ApiKey"] = "[PRIVATE]"
+            }
+        };
+        var sink = new CollectingSink();
+        using var logger = new LoggerConfiguration()
+            .Enrich.With(new SensitiveDataEnricher(new StaticOptionsMonitor(options)))
+            .WriteTo.Sink(sink)
+            .CreateLogger();
+
+        logger.Information("Values {@Values}", new MaskValues(
+            "alice@example.com", "13812345678", "110101199001011234", "6222021234561234",
+            "Alice", "abcdef7890", "secret", "key"));
+
+        var values = Assert.IsType<StructureValue>(sink.Events.Single().Properties["Values"]);
+        Assert.Equal("a***@example.com", Scalar(values, "Email"));
+        Assert.Equal("138****5678", Scalar(values, "Phone"));
+        Assert.Equal("110101********1234", Scalar(values, "IdCard"));
+        Assert.Equal("************1234", Scalar(values, "BankCard"));
+        Assert.Equal("A****", Scalar(values, "Name"));
+        Assert.Equal("******7890", Scalar(values, "Token"));
+        Assert.Equal("[REDACTED]", Scalar(values, "Password"));
+        Assert.Equal("[PRIVATE]", Scalar(values, "ApiKey"));
+    }
+
+    private static object? Scalar(StructureValue structure, string name) =>
+        Assert.IsType<ScalarValue>(structure.Properties.Single(p => p.Name == name).Value).Value;
+
     private static StringContent JsonContent(string json) => new(json, Encoding.UTF8, "application/json");
 
     private static void AssertBody(IEnumerable<LogEvent> events, string propertyName, string expectedEmail)
@@ -114,6 +157,23 @@ public class HttpLoggingTests
     }
 
     private sealed record Contact(string Email, string Name);
+
+    private sealed record MaskValues(
+        string Email,
+        string Phone,
+        string IdCard,
+        string BankCard,
+        string Name,
+        string Token,
+        string Password,
+        string ApiKey);
+
+    private sealed class StaticOptionsMonitor(ContioneLoggingOptions value) : IOptionsMonitor<ContioneLoggingOptions>
+    {
+        public ContioneLoggingOptions CurrentValue => value;
+        public ContioneLoggingOptions Get(string? name) => value;
+        public IDisposable? OnChange(Action<ContioneLoggingOptions, string?> listener) => null;
+    }
 
     private sealed class CollectingSink : ILogEventSink
     {
